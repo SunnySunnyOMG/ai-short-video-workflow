@@ -1,0 +1,18 @@
+node_modules/
+.DS_Store
+__pycache__/
+# Generated per episode; the script, episode.json and your notes are what you keep.
+episodes/*/work/
+episodes/*/assets/audio/
+episodes/*/assets/vendor/
+episodes/*/compositions/
+episodes/*/renders/
+episodes/*/output/
+episodes/*/.hyperframes/
+episodes/*/index.html
+episodes/*/captions.srt
+episodes/*/hyperframes.json
+episodes/*/meta.json
+# Keys never live in the repo.
+.env
+*.key

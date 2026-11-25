@@ -1,0 +1,6 @@
+# One page per line: page id <TAB> layout <TAB> narration.
+# "/" splits a page into captions. [[word]] lights up the moment it is spoken.
+# Layouts: title, points, keyword. Lines starting with # are ignored.
+open	title	这条视频，/是从一段[[文字]]生成的。
+steps	points	第一步，[[配音]]，把稿子合成声音。/第二步，[[画面]]，用网页写动画，再录成视频。/第三步，[[检查]]，截图、转写，自己核对。
+close	keyword	改一句稿子，重新跑一遍，/画面会[[自己对齐]]声音。

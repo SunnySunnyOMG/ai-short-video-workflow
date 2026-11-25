@@ -1,0 +1,66 @@
+{
+  "_doc": "Defaults for every episode. An episode can override any key in its own episode.json. See docs/customize.md.",
+
+  "hyperframes": "0.9.43",
+  "width": 1080,
+  "height": 1920,
+  "fps": 30,
+
+  "tts": {
+    "provider": "minimax",
+    "model": "speech-2.8-hd",
+    "voice": "Chinese (Mandarin)_Sincere_Adult",
+    "speed": 1.2,
+    "language": "Chinese",
+    "chars_per_second": 5.2
+  },
+  "asr": {
+    "provider": "minimax",
+    "language": "zh"
+  },
+  "speak_replacements": [],
+
+  "pause_after_page": 0.6,
+  "pauses": {},
+  "lead_in": 0.25,
+  "end_hold": 1.6,
+
+  "music": {
+    "file": "",
+    "level_lufs": -29,
+    "duck": true
+  },
+  "voice_level_lufs": -15,
+  "loudness": {
+    "target_lufs": -14,
+    "true_peak": -1.5,
+    "lra": 11
+  },
+
+  "palette": {
+    "ground": "#E8E6E0",
+    "paper": "#F5F3EE",
+    "ink": "#141416",
+    "muted": "#5B5852",
+    "accent": "#FF5A1F",
+    "accent_text": "#C2410C"
+  },
+  "fonts": {
+    "regular": ["PingFang SC", "PingFangSC-Regular", "Microsoft YaHei", "Noto Sans CJK SC", "Source Han Sans SC", "WenQuanYi Micro Hei"],
+    "bold": ["PingFangSC-Semibold", "PingFang SC Semibold", "Microsoft YaHei Bold", "Noto Sans CJK SC Bold", "Source Han Sans SC Bold", "WenQuanYi Micro Hei"]
+  },
+  "text": {
+    "title_size": 104,
+    "point_size": 52,
+    "keyword_size": 88,
+    "min_size": 28
+  },
+  "captions": {
+    "top": 1210,
+    "size": 52,
+    "max_width_chars": 17
+  },
+
+  "cover_at": 0.6,
+  "output_name": ""
+}
