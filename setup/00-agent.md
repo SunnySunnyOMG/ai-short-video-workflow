@@ -29,7 +29,7 @@ Both routes use the same pipeline. Only the model behind the agent and the optio
    ```powershell
    irm https://claude.ai/install.ps1 | iex
    ```
-   Or `brew install --cask claude-code`, or `winget install Anthropic.ClaudeCode`.
+   Or `brew install --cask claude-code`, or `winget install Anthropic.ClaudeCode`. On Windows, also install Git for Windows (`winget install Git.Git`).
 3. In a terminal, go to this repo's folder and run `claude`. The first run opens the browser to sign in.
 
 ### Codex

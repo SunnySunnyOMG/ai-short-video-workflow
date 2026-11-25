@@ -6,7 +6,7 @@
 
 <img src="docs/img/example-frames.jpg" alt="示例视频的三帧：标题页、编号列表、结尾句和高亮关键词" width="620">
 
-这个仓库的目标是：一个人，或者一个 Agent，读完它就能在一台空电脑上把整套东西搭起来。要开哪些账号、买什么、装什么、钥匙放哪、怎么出一条测试视频证明搭好了，都写在里面。在中国大陆也有一条不用翻墙的路线。
+这个仓库的目标是：一个人，或者一个 Agent，读完它就能在一台空电脑上把整套东西搭起来。要开哪些账号、买什么、装什么、密钥放哪、怎么出一条测试视频证明搭好了，都写在里面。在中国大陆也有一条不用翻墙的路线。
 
 ## 从这里开始
 
@@ -24,7 +24,7 @@
 
 | | |
 | --- | --- |
-| 一台电脑 | macOS（实测过）、Linux（照着能装）、Windows（还没验证，见 [setup/platforms.md](setup/platforms.md)） |
+| 一台电脑 | macOS（实测过）、Linux（按步骤应可用，未完整实测）、Windows（还没验证，见 [setup/platforms.md](setup/platforms.md)） |
 | Agent 的模型 | Claude、ChatGPT，或国产的 MiniMax、智谱 GLM、Kimi、DeepSeek（[setup/00-agent.md](setup/00-agent.md)、[setup/china.md](setup/china.md)） |
 | MiniMax 账号 | 配音和语音转写，按量付费就够（[setup/01-accounts.md](setup/01-accounts.md)） |
 | 配乐（可选） | Google Lyria、国产音乐接口、自己的音乐文件，或者发布时在抖音里选曲库 |
@@ -32,6 +32,12 @@
 在中国大陆，推荐用 Claude Code 接 MiniMax 的模型：Agent 和配音共用一个 MiniMax 账号。详见 [setup/china.md](setup/china.md)。
 
 ## 怎么做出来的
+
+```
+script.tsv ──voice──▶ 配音和时间 ──align──▶ 逐字时间 ──build──▶ HTML 页面
+                                                              │
+output/*.mp4 ◀──finish── renders/master.mp4 ◀──render── check（自动检查 + 每页截帧）
+```
 
 - **配音就是时钟。** 每页口播用 MiniMax 合成，再转写回文字对时间。字幕和 `[[关键词]]` 在说到它的那一秒出现。改一句稿子重新跑，后面的画面自动跟着挪。
 - **画面是代码。** 每一页是 HTML 加 GSAP 动画，用 [HyperFrames](https://github.com/heygen-com/hyperframes) 一帧一帧录成视频，同样的输入每次出同样的片子。
@@ -44,8 +50,23 @@
 这个仓库只给流程和工具，不带任何人的风格和经验。你的经验在你自己的 fork 里慢慢攒：
 
 - [config/video.json](config/video.json)：音色、语速、配色、字号、字幕位置、配乐音量、响度。每一项的说明见 [docs/customize.md](docs/customize.md)。
-- `rules/rules.md`：你自己的规矩，比如怎么写稿、哪些词要换读法、画面上绝不能出现什么。从空模板 [rules.template.md](rules/rules.template.md) 开始，Agent 每期开工先读它，你过片之后它往里加。
+- `rules/rules.md`：你自己的规矩，比如怎么写稿、哪些词要换读法、画面上绝不能出现什么。从空模板 [rules.template.md](rules/rules.template.md) 开始，Agent 每期开工先读它，你确认成片后，它把新规矩补进去。
 - [pipeline/make.py](pipeline/make.py)：页面版式和配音服务商。配置改不到的，让 Agent 改这里。
+
+## 仓库里有什么
+
+```
+AGENTS.md                 给所有 Agent 的说明（CLAUDE.md、GEMINI.md、QWEN.md 都指向它）
+setup/                    Agent、账号、安装、密钥、操作系统、中国大陆路线
+skills/douyin-video/      每一期的做片流程
+pipeline/make.py          从稿子到成片，一个文件，只用 Python 标准库
+pipeline/music_lyria.py   可选：用 Google Lyria 生成配乐
+scripts/doctor.py         检查这台电脑还缺什么
+config/video.json         所有视频的默认设置
+rules/rules.template.md   空的规矩文件模板，写你自己的风格
+examples/hello/           20 秒的示例稿
+docs/customize.md         每个设置的含义，以及怎么扩展流水线
+```
 
 ## 不包含
 

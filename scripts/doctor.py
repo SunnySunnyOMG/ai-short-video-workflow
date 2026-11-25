@@ -58,6 +58,7 @@ def main():
     add('operating system', system in ('Darwin', 'Linux', 'Windows'),
         f'{system} {platform.release()} ({"tested" if system == "Darwin" else "should work" if system == "Linux" else "not verified yet"})',
         'setup/platforms.md')
+    add('git', shutil.which('git'), shutil.which('git') or 'missing', 'setup/02-install.md')
     py = sys.version_info
     add('python >= 3.9', py >= (3, 9), f'{py.major}.{py.minor}.{py.micro}', 'setup/02-install.md#python')
     node = version(['node', '--version'])
@@ -76,9 +77,9 @@ def main():
     if mmx:
         code, text = out(['mmx', 'auth', 'status', '--non-interactive'])
         add('MiniMax signed in', code == 0 and '"method"' in text,
-            'signed in' if code == 0 else 'not signed in', 'setup/01-accounts.md#minimax')
+            'signed in' if code == 0 else 'not signed in', 'setup/03-keys.md (account: setup/01-accounts.md#minimax)')
     else:
-        add('MiniMax signed in', False, 'needs mmx first', 'setup/01-accounts.md#minimax')
+        add('MiniMax signed in', False, 'needs mmx first', 'setup/03-keys.md (account: setup/01-accounts.md#minimax)')
 
     agents = [a for a in ('claude', 'codex', 'qwen', 'kimi', 'opencode') if shutil.which(a)]
     add('a coding agent', agents, ', '.join(agents) or 'none found on PATH (fine if you run one elsewhere)',
@@ -86,8 +87,11 @@ def main():
     gem = bool(os.environ.get('GEMINI_API_KEY'))
     if not gem and system == 'Darwin':
         gem = out(['security', 'find-generic-password', '-s', 'apikey/gemini'])[0] == 0
+    if not gem and system == 'Linux' and shutil.which('secret-tool'):
+        code, text = out(['secret-tool', 'lookup', 'service', 'apikey/gemini'])
+        gem = code == 0 and bool(text)
     add('Gemini key (optional, for Lyria music)', gem, 'found' if gem else 'not set; music is optional',
-        'setup/01-accounts.md#music', required=False)
+        'setup/01-accounts.md#music-optional', required=False)
 
     missing = [c for c in checks if c['required'] and not c['ok']]
     if '--json' in sys.argv:
@@ -100,7 +104,8 @@ def main():
     if missing:
         print(f'{len(missing)} required item(s) missing. Fix them in order, then run this again.')
     else:
-        print('Ready. Next: python3 pipeline/make.py new my-first-video && python3 pipeline/make.py all episodes/my-first-video')
+        py = 'python' if system == 'Windows' else 'python3'
+        print(f'Ready. Next: {py} pipeline/make.py new hello, then {py} pipeline/make.py all episodes/hello --placeholder')
     sys.exit(1 if missing else 0)
 
 

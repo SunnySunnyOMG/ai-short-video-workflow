@@ -40,16 +40,36 @@ def merge(base, over):
     return out
 
 
+def read_json(path):
+    try:
+        return json.loads(path.read_text(encoding='utf-8-sig'))
+    except json.JSONDecodeError as e:
+        sys.exit(f'{path.name} is not valid JSON: {e}')
+
+
 def load_config(ep):
-    cfg = json.loads((REPO / 'config/video.json').read_text())
+    cfg = read_json(REPO / 'config/video.json')
     own = ep / 'episode.json'
-    return merge(cfg, json.loads(own.read_text())) if own.exists() else cfg
+    cfg = merge(cfg, read_json(own)) if own.exists() else cfg
+    small = {k: v for k, v in cfg['text'].items() if k != 'min_size' and v < cfg['text']['min_size']}
+    if cfg['captions']['size'] < cfg['text']['min_size']:
+        small['captions.size'] = cfg['captions']['size']
+    if small:
+        sys.exit(f'font sizes below text.min_size ({cfg["text"]["min_size"]}px): {small}')
+    return cfg
+
+
+def timing_of(ep):
+    path = ep / 'work/timing.json'
+    if not path.exists():
+        sys.exit('no work/timing.json yet: run the voice step first')
+    return json.loads(path.read_text(encoding='utf-8'))
 
 
 def read_script(ep):
     """script.tsv: one page per line, `page<TAB>layout<TAB>text`; cues split by `/`; [[word]] marks a keyword."""
     pages = []
-    for n, line in enumerate((ep / 'script.tsv').read_text(encoding='utf-8').splitlines(), 1):
+    for n, line in enumerate((ep / 'script.tsv').read_text(encoding='utf-8-sig').splitlines(), 1):
         if not line.strip() or line.lstrip().startswith('#'):
             continue
         cols = line.split('\t')
@@ -60,7 +80,13 @@ def read_script(ep):
             sys.exit(f'script.tsv line {n}: page id {pid!r} must be unique, lowercase, start with a letter')
         if layout not in LAYOUTS:
             sys.exit(f'script.tsv line {n}: layout {layout!r} is not one of {", ".join(LAYOUTS)}')
-        cues = [c.strip() for c in text.split('/') if c.strip()]
+        if text.count('[[') != text.count(']]') or '[[]]' in text or re.search(r'\[\[[^\]]*/', text):
+            sys.exit(f'script.tsv line {n}: each [[keyword]] needs both brackets, some text, and no "/" inside')
+        cues = [c.strip() for c in text.split('/') if plain(c).strip(' 。，,.')]
+        if not cues:
+            sys.exit(f'script.tsv line {n}: page {pid!r} has no narration')
+        if layout == 'points' and len(cues) > 6:
+            sys.exit(f'script.tsv line {n}: a points page holds at most 6 cues; split it into two pages')
         pages.append({'id': pid, 'layout': layout, 'cues': cues})
     if not pages:
         sys.exit('script.tsv is empty')
@@ -95,7 +121,10 @@ def exe(name):
 
 
 def ffmpeg(*args):
-    return subprocess.check_output([exe('ffmpeg'), '-v', 'error', '-y', *map(str, args)])
+    r = subprocess.run([exe('ffmpeg'), '-v', 'error', '-y', *map(str, args)], capture_output=True)
+    if r.returncode:
+        sys.exit(f'ffmpeg failed: {r.stderr.decode("utf-8", "replace").strip()[-1500:]}')
+    return r.stdout
 
 
 def wav(path, pcm):
@@ -110,7 +139,7 @@ def weight(text):
 
 
 def run(cmd, cwd=None, check=True):
-    r = subprocess.run(cmd, cwd=cwd, capture_output=True, text=True)
+    r = subprocess.run(cmd, cwd=cwd, capture_output=True, text=True, encoding='utf-8', errors='replace')
     if check and r.returncode:
         sys.exit(f'failed: {" ".join(map(str, cmd))}\n{r.stderr.strip() or r.stdout.strip()}')
     return r
@@ -121,10 +150,10 @@ def run(cmd, cwd=None, check=True):
 def tts_minimax(text, out, cfg):
     t = cfg['tts']
     cmd = [exe('mmx'), 'speech', 'synthesize', '--non-interactive', '--quiet', '--model', t['model'], '--voice', t['voice'],
-           '--speed', str(t['speed']), '--language', t['language'], '--text-normalization', '--text', text, '--out', str(out)]
+           '--speed', str(t['speed']), '--language', t['language'], '--text-normalization', '--text-file', '-', '--out', str(out)]
     for delay in (0, 13, 24, 38):
         time.sleep(delay)
-        r = subprocess.run(cmd, capture_output=True, text=True)
+        r = subprocess.run(cmd, input=text, capture_output=True, text=True, encoding='utf-8', errors='replace')
         if r.returncode == 0:
             return
         if 'rate limit' not in (r.stderr + r.stdout).lower():
@@ -135,7 +164,7 @@ def tts_minimax(text, out, cfg):
 def asr_minimax(audio, out, cfg):
     run([exe('mmx'), 'speech', 'transcribe', '--non-interactive', '--file', str(audio), '--language', cfg['asr']['language'],
          '--response-format', 'verbose_json', '--timestamp-level', 'word', '--out', str(out)])
-    data = json.loads(out.read_text())
+    data = json.loads(out.read_text(encoding='utf-8'))
     return [(s['text'], s['start'], s['end']) for s in data['segments']]
 
 
@@ -251,7 +280,7 @@ def step_voice(ep, cfg, placeholder=False):
                    '[v]pan=stereo|c0=c0|c1=c0[n];[n][bed]amix=inputs=2:duration=first:normalize=0,alimiter=limit=0.92[out]',
                    '-map', '[out]', '-t', duration, '-ar', RATE, '-c:a', 'aac', '-b:a', '192k', audio / 'mix.m4a')
     timing = {'duration': duration, 'placeholder': placeholder, 'aligned': False, 'scenes': scenes}
-    (ep / 'work/timing.json').write_text(json.dumps(timing, ensure_ascii=False, indent=1))
+    (ep / 'work/timing.json').write_text(json.dumps(timing, ensure_ascii=False, indent=1), encoding='utf-8')
     print(f'voice: {duration:.2f}s, {len(scenes)} pages{" (placeholder: silent, estimated timing)" if placeholder else ""}')
 
 
@@ -263,7 +292,7 @@ def match_ratio(script_text, heard_text):
 
 def step_align(ep, cfg):
     path = ep / 'work/timing.json'
-    timing = json.loads(path.read_text())
+    timing = timing_of(ep)
     if timing['placeholder']:
         print('align: skipped (placeholder voice has nothing to transcribe)')
         return
@@ -300,7 +329,7 @@ def step_align(ep, cfg):
             k += len(c)
     timing['aligned'] = True
     timing['voice_match'] = round(score, 4)
-    path.write_text(json.dumps(timing, ensure_ascii=False, indent=1))
+    path.write_text(json.dumps(timing, ensure_ascii=False, indent=1), encoding='utf-8')
     print(f'align: transcript matches the script {score:.1%}; moved {moved} caption starts onto the spoken word')
 
 
@@ -323,6 +352,7 @@ def styles(cfg):
 #root *{{box-sizing:border-box}}
 .stack{{position:absolute;left:60px;right:60px;top:260px;display:flex;flex-direction:column;gap:34px}}
 .title{{font-size:{t['title_size']}px;font-weight:700;line-height:1.18;text-align:center;margin-top:160px}}
+.bar{{width:120px;height:12px;background:{p['accent']};align-self:center}}
 .sub{{font-size:{t['point_size']}px;font-weight:400;line-height:1.35;text-align:center;color:{p['muted']}}}
 .row{{display:flex;gap:26px;align-items:flex-start;background:{p['paper']};border:5px solid {p['ink']};box-shadow:10px 10px 0 {p['ink']};padding:24px 28px}}
 .num{{flex:none;width:72px;height:72px;background:{p['ink']};color:{p['paper']};font-size:44px;font-weight:700;display:flex;align-items:center;justify-content:center}}
@@ -331,7 +361,7 @@ def styles(cfg):
 .big:first-child{{margin-top:140px}}
 .kw{{color:{p['ink']}}}
 .big .kw{{padding:0 .12em}}
-.on{{opacity:1}}
+
 """
 
 
@@ -347,13 +377,14 @@ def kw_time(scene, word, after):
 
 def marked(text, ids):
     """Caption text with [[keywords]] wrapped in spans that light up when spoken."""
+    text = text.rstrip('。，；：,.;: ')
     out, pos = [], 0
     for m in re.finditer(r'\[\[(.+?)\]\]', text):
         out.append(esc(text[pos:m.start()]))
         out.append(f'<span class="kw" id="{ids.pop(0)}">{esc(m.group(1))}</span>')
         pos = m.end()
     out.append(esc(text[pos:]))
-    return ''.join(out).rstrip('。，；：,.;:')
+    return ''.join(out)
 
 
 def width(text):
@@ -394,10 +425,13 @@ def page_html(scene, cfg):
     if scene['layout'] == 'title':
         opening = start == 0
         body = f'<div class="title" id="c0" style="opacity:{1 if opening else 0}">{big_lines(cues[0]["text"], cfg["text"]["title_size"], slots, cfg)}</div>'
+        body += f'<div class="bar" id="bar" style="opacity:{1 if opening else 0}"></div>'
         body += ''.join(f'<div class="sub" id="c{i}" style="opacity:0">{marked(c["text"], slots)}</div>' for i, c in enumerate(cues[1:], 1))
         for i, t in enumerate(local):
             if not (i == 0 and opening):
                 fin(f'#c{i}', max(.05, t) if i == 0 else t)
+            if i == 0 and not opening:
+                fin('#bar', max(.05, t))
     elif scene['layout'] == 'points':
         body = ''.join(f'<div class="row" id="c{i}" style="opacity:0"><div class="num">{i + 1}</div><div class="txt">{marked(c["text"], slots)}</div></div>'
                        for i, c in enumerate(cues))
@@ -419,15 +453,11 @@ def page_html(scene, cfg):
 
 
 def caption_lines(text, cfg):
-    t = plain(text).rstrip('。，；：,.;:')
-    width = sum(1 if ord(c) > 127 else .5 for c in t)
-    if width <= cfg['captions']['max_width_chars']:
-        return [t]
-    pts = [m.end() for m in re.finditer(r'[，、；：,;:]', t)] or [m.start() for m in re.finditer(' ', t)]
-    if not pts:
-        sys.exit(f'caption too long and has no comma to break at: {text!r}. Add a "/" to split the cue in script.tsv')
-    cut = min(pts, key=lambda i: abs(i - len(t) / 2))
-    return [t[:cut].rstrip('，、；：,;: '), t[cut:].strip()]
+    limit = cfg['captions']['max_width_chars']
+    lines = split_at_comma(plain(text), limit)
+    if len(lines) > 3 or any(width(l) > limit * 1.2 for l in lines):
+        sys.exit(f'caption too long to fit: {plain(text)!r}. Add a "/" in script.tsv to split it into two captions')
+    return [l.strip('，、；：,;: ') for l in lines]
 
 
 def srt_time(x):
@@ -469,7 +499,9 @@ def ensure_gsap(ep):
 
 
 def step_build(ep, cfg):
-    timing = json.loads((ep / 'work/timing.json').read_text())
+    if not (ep / 'work/timing.json').exists():
+        sys.exit('no work/timing.json yet: run the voice step first')
+    timing = timing_of(ep)
     dur, W, H, p = timing['duration'], cfg['width'], cfg['height'], cfg['palette']
     ensure_gsap(ep)
     comp = ep / 'compositions'
@@ -480,7 +512,7 @@ def step_build(ep, cfg):
     for n, s in enumerate(timing['scenes']):
         body, tw = page_html(s, cfg)
         d = s['end'] - s['start']
-        (comp / f'{s["id"]}.html').write_text(template(s['id'], css, body, tw, d, cfg))
+        (comp / f'{s["id"]}.html').write_text(template(s['id'], css, body, tw, d, cfg), encoding='utf-8')
         hosts.append(f'<div id="h-{s["id"]}" class="clip" data-composition-id="{s["id"]}" data-composition-src="compositions/{s["id"]}.html" '
                      f'data-start="{s["start"]:.3f}" data-duration="{d:.3f}" data-track-index="{1 + n % 2}" data-track-kind="graphics" '
                      f'data-width="{W}" data-height="{H}"></div>')
@@ -503,8 +535,8 @@ def step_build(ep, cfg):
 {chr(10).join(caps)}
 </div>
 </template>
-''')
-    (ep / 'captions.srt').write_text('\n'.join(srt))
+''', encoding='utf-8')
+    (ep / 'captions.srt').write_text('\n'.join(srt), encoding='utf-8')
     title = cfg.get('title') or ep.name
     (ep / 'index.html').write_text(f'''<!doctype html>
 <html lang="zh-CN" data-resolution="portrait">
@@ -525,9 +557,9 @@ def step_build(ep, cfg):
 <script>window.__timelines = window.__timelines || {{}}; window.__timelines["main"] = gsap.timeline({{ paused: true }});</script>
 </body>
 </html>
-''')
-    (ep / 'hyperframes.json').write_text(json.dumps({'paths': {'blocks': 'compositions', 'assets': 'assets'}}, indent=2) + '\n')
-    (ep / 'meta.json').write_text(json.dumps({'id': ep.name, 'name': ep.name}, indent=2) + '\n')
+''', encoding='utf-8')
+    (ep / 'hyperframes.json').write_text(json.dumps({'paths': {'blocks': 'compositions', 'assets': 'assets'}}, indent=2) + '\n', encoding='utf-8')
+    (ep / 'meta.json').write_text(json.dumps({'id': ep.name, 'name': ep.name}, indent=2) + '\n', encoding='utf-8')
     print(f'build: {len(timing["scenes"])} pages, {len(cues)} captions, {dur:.2f}s')
 
 
@@ -543,7 +575,7 @@ def step_check(ep, cfg):
         report = json.loads(r.stdout[r.stdout.find('{'):])
     except ValueError:
         sys.exit(f'check: could not read the report\n{r.stdout[-2000:]}\n{r.stderr[-2000:]}')
-    (ep / 'work/check.json').write_text(json.dumps(report, ensure_ascii=False, indent=1))
+    (ep / 'work/check.json').write_text(json.dumps(report, ensure_ascii=False, indent=1), encoding='utf-8')
     found = []
 
     def walk(x):
@@ -559,7 +591,7 @@ def step_check(ep, cfg):
     errors = [f for f in found if f['severity'] == 'error']
     for f in found:
         print(f"  {f['severity']}: {f.get('code') or f.get('rule')}: {f.get('message', '')[:200]}")
-    timing = json.loads((ep / 'work/timing.json').read_text())
+    timing = timing_of(ep)
     shots = sorted({round((s['start'] + s['end']) / 2, 2) for s in timing['scenes']} |
                    {round(s['end'] - .35, 2) for s in timing['scenes']})
     out = ep / 'work/review'
@@ -577,7 +609,7 @@ def step_render(ep, cfg):
 
 def loudness(path):
     r = subprocess.run([exe('ffmpeg'), '-hide_banner', '-nostats', '-i', str(path), '-af', 'ebur128=peak=true', '-f', 'null', '-'],
-                       capture_output=True, text=True)
+                       capture_output=True, text=True, encoding='utf-8', errors='replace')
     tail = r.stderr[r.stderr.rfind('Summary:'):]
     lufs = re.search(r'I:\s+(-?[\d.]+) LUFS', tail)
     peak = re.search(r'Peak:\s+(-?[\d.]+) dBFS', tail)
@@ -587,24 +619,40 @@ def loudness(path):
 def step_finish(ep, cfg):
     L = cfg['loudness']
     src, out = ep / 'renders/master.mp4', ep / 'output'
+    if not src.exists():
+        sys.exit('no renders/master.mp4 yet: run the render step first')
     out.mkdir(exist_ok=True)
     name = cfg.get('output_name') or ep.name
     final = out / f'{name}.mp4'
+    timing = timing_of(ep)
     first = f'loudnorm=I={L["target_lufs"]}:TP={L["true_peak"]}:LRA={L["lra"]}'
+    if timing['placeholder']:
+        ffmpeg('-i', src, '-c:v', 'libx264', '-crf', 18, '-preset', 'slow', '-pix_fmt', 'yuv420p',
+               '-c:a', 'aac', '-b:a', '128k', '-movflags', '+faststart', final)
+    else:
+        loudnorm(src, final, first)
+    lufs, peak = loudness(final) if not timing['placeholder'] else ('n/a (silent)', 'n/a')
+    finish_rest(ep, cfg, final, name, out, timing, lufs, peak)
+
+
+def loudnorm(src, final, first):
     r = subprocess.run([exe('ffmpeg'), '-hide_banner', '-nostats', '-i', str(src), '-af', first + ':print_format=json', '-f', 'null', '-'],
-                       capture_output=True, text=True)
+                       capture_output=True, text=True, encoding='utf-8', errors='replace')
     m = json.loads(r.stderr[r.stderr.rfind('{'):r.stderr.rfind('}') + 1])
     second = (f'{first}:measured_I={m["input_i"]}:measured_TP={m["input_tp"]}:measured_LRA={m["input_lra"]}'
               f':measured_thresh={m["input_thresh"]}:offset={m["target_offset"]}:linear=true')
     ffmpeg('-i', src, '-af', second, '-ar', RATE, '-c:v', 'libx264', '-crf', 18, '-preset', 'slow', '-pix_fmt', 'yuv420p',
            '-c:a', 'aac', '-b:a', '192k', '-movflags', '+faststart', final)
-    lufs, peak = loudness(final)
+
+
+def finish_rest(ep, cfg, final, name, out, timing, lufs, peak):
+    L = cfg['loudness']
     shutil.copy(ep / 'captions.srt', out / f'{name}.srt')
     cover = out / 'cover.png'
     with tempfile.TemporaryDirectory() as tmp:
         run([*hf(cfg), 'snapshot', '--at', str(cfg['cover_at']), '--no-end', '--keep', '-o', tmp], cwd=ep)
         shutil.copy(next(Path(tmp).glob('*.png')), cover)
-    timing = json.loads((ep / 'work/timing.json').read_text())
+    timing = timing_of(ep)
     probe = json.loads(run([exe('ffprobe'), '-v', 'error', '-show_entries', 'stream=width,height,r_frame_rate:format=duration', '-of', 'json', str(final)]).stdout)
     v = next(s for s in probe['streams'] if 'width' in s)
     lines = [f'# {name}', '', f'- file: output/{final.name} ({final.stat().st_size / 1e6:.1f} MB)',
@@ -626,7 +674,7 @@ def step_finish(ep, cfg):
             lines += ['- differences to listen to (homophones are usually fine; misreadings are not):', *diffs]
     lines += ['- cover: output/cover.png', f'- captions: output/{name}.srt', '',
               'Not checked by this script: how it looks on a phone, and whether anything private is on screen.']
-    (out / 'report.md').write_text('\n'.join(lines) + '\n')
+    (out / 'report.md').write_text('\n'.join(lines) + '\n', encoding='utf-8')
     print('\n'.join(lines))
 
 
@@ -640,7 +688,7 @@ def new_episode(slug):
         sys.exit(f'{dst} already exists')
     dst.mkdir(parents=True)
     shutil.copy(REPO / 'examples/hello/script.tsv', dst / 'script.tsv')
-    (dst / 'episode.json').write_text('{\n  "title": "' + slug + '"\n}\n')
+    (dst / 'episode.json').write_text('{\n  "title": "' + slug + '"\n}\n', encoding='utf-8')
     print(f'created episodes/{slug}/ — edit script.tsv, then: python3 pipeline/make.py all episodes/{slug}')
 
 
@@ -651,6 +699,10 @@ STEPS = {'voice': step_voice, 'align': step_align, 'build': step_build, 'check':
 def main(argv):
     flags = {a for a in argv if a.startswith('--')}
     args = [a for a in argv if not a.startswith('--')]
+    if flags - {'--placeholder'}:
+        sys.exit(f'unknown option {", ".join(sorted(flags - {"--placeholder"}))}; the only option is --placeholder')
+    if '--placeholder' in flags and args and args[0] not in ('voice', 'all'):
+        sys.exit('--placeholder only applies to the voice and all steps')
     if len(args) != 2 or args[0] not in (*STEPS, 'all', 'new'):
         sys.exit(__doc__)
     if args[0] == 'new':

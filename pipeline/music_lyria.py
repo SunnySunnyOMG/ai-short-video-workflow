@@ -1,9 +1,8 @@
 #!/usr/bin/env python3
 """Generate an instrumental music bed with Google Lyria RealTime (optional; needs a Gemini API key).
 
-    pip install google-genai          (once, ideally in a virtualenv)
-    python3 pipeline/music_lyria.py --seconds 90 --out music/bed.m4a \
-        --prompt "calm electronic underscore, soft synth arpeggio, warm pads, light percussion, no vocals"
+    python3 -m venv .venv && .venv/bin/pip install google-genai      (once)
+    .venv/bin/python pipeline/music_lyria.py --seconds 90 --out music/bed.m4a --prompt "<describe the music>"
 
 Then set "music": {"file": "music/bed.m4a"} in config/video.json or an episode.json.
 

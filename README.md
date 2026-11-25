@@ -25,9 +25,9 @@ After that, give the agent a topic. It follows [skills/douyin-video/SKILL.md](sk
 | | |
 | --- | --- |
 | A computer | macOS (tested), Linux (should work), Windows (not verified; see [setup/platforms.md](setup/platforms.md)) |
-| An agent plan | Claude or ChatGPT, or a domestic model such as MiniMax, GLM, Kimi or DeepSeek ([setup/00-agent.md](setup/00-agent.md)) |
+| An agent plan | Claude or ChatGPT, or a Chinese provider such as MiniMax, GLM, Kimi or DeepSeek ([setup/00-agent.md](setup/00-agent.md)) |
 | A MiniMax account | Voice and transcription; pay as you go is enough ([setup/01-accounts.md](setup/01-accounts.md)) |
-| Music (optional) | Google Lyria, a domestic API, your own file, or pick a track in the Douyin app when posting |
+| Music (optional) | Google Lyria, a Chinese music API, your own file, or a track picked in the Douyin app when posting |
 
 ## How it works
 
@@ -39,13 +39,13 @@ output/*.mp4 ◀──finish── renders/master.mp4 ◀──render── chec
 
 - **The voice is the clock.** Each page is synthesised with MiniMax, then transcribed back; captions and `[[keywords]]` appear at the second they are spoken. Change a sentence and rebuild: everything after it moves with it.
 - **Visuals are code.** Pages are HTML + GSAP rendered frame by frame with [HyperFrames](https://github.com/heygen-com/hyperframes), so the same input gives the same video every time.
-- **The machine checks its own work.** The HyperFrames checker, a frame from every page for the agent to look at, two-pass loudness normalisation to −14 LUFS, and a transcript of the final audio compared with the script.
+- **Every build is checked.** The HyperFrames checker runs, the agent looks at a frame from each page, loudness is normalised to −14 LUFS in two passes, and the final audio is transcribed and compared with the script.
 
 One command runs it all: `python3 pipeline/make.py all episodes/<name>`. Add `--placeholder` for a silent preview that needs no accounts.
 
 ## Make it yours
 
-This repo ships the procedure and the tools, not anyone's style. Your style accumulates in your own fork:
+The repo contains the procedure and the tools, and no style rules. Yours go in your fork:
 
 - [config/video.json](config/video.json): voice, speed, colours, fonts, caption position, music level, loudness. See [docs/customize.md](docs/customize.md).
 - `rules/rules.md`: your rules about writing, wording, looks and what must never appear on screen. It starts from an empty [template](rules/rules.template.md); the agent reads it before every episode and adds to it after you approve one.

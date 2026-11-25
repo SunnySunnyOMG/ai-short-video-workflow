@@ -34,4 +34,4 @@ macOS is the tested platform. Linux should work by following the same steps. Win
 - Read `rules/rules.md` before every episode. It overrides your defaults and this repo's examples.
 - Never publish to Douyin or any other platform.
 - Change `config/`, the script, or `pipeline/`; never hand-edit generated files (`index.html`, `compositions/`).
-- When a step fails, read the message, fix the cause, and re-run only that step. Steps are cached and idempotent.
+- When a step fails, read the message, fix the cause, and re-run that step. Every step is safe to re-run; only voice synthesis is cached (by text and settings), so unchanged pages cost nothing the second time.

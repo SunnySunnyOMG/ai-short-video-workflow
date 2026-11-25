@@ -32,9 +32,9 @@ An episode's `episode.json` only needs the keys it changes; nested objects merge
 | `music.level_lufs`, `music.duck` | Bed loudness, and whether it dips under speech. |
 | `voice_level_lufs` | Voice loudness inside the mix, before the final normalisation. |
 | `loudness.target_lufs`, `true_peak`, `lra` | The delivered file's loudness. |
-| `palette` | `ground` background, `paper` cards, `ink` text, `muted` secondary text, `accent` decoration, `accent_text` highlighted words (keep it readable on `ground`). |
+| `palette` | `ground` background, `paper` cards, `ink` text, `muted` secondary text, `accent` decoration (the bar under a title), `accent_text` highlighted words (keep it readable on `ground` and `paper`). |
 | `fonts.regular`, `fonts.bold` | Installed font names, tried in order. See `setup/platforms.md#fonts`. |
-| `text.*` | Font sizes in pixels. Keep everything at or above `min_size`. |
+| `text.*` | Font sizes in pixels. Every size, including `captions.size`, must be at least `text.min_size`, or the pipeline stops and says which one. |
 | `captions.top`, `size`, `max_width_chars` | Caption position and size. Keep captions clear of Douyin's own buttons and text at the bottom and right. |
 | `cover_at` | Second of the video used for `output/cover.png`. |
 | `output_name` | File name for the delivered video; defaults to the episode folder name. |
