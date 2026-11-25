@@ -631,7 +631,7 @@ def step_finish(ep, cfg):
                '-c:a', 'aac', '-b:a', '128k', '-movflags', '+faststart', final)
     else:
         loudnorm(src, final, first)
-    lufs, peak = loudness(final) if not timing['placeholder'] else ('n/a (silent)', 'n/a')
+    lufs, peak = loudness(final) if not timing['placeholder'] else (None, None)
     finish_rest(ep, cfg, final, name, out, timing, lufs, peak)
 
 
@@ -657,7 +657,8 @@ def finish_rest(ep, cfg, final, name, out, timing, lufs, peak):
     v = next(s for s in probe['streams'] if 'width' in s)
     lines = [f'# {name}', '', f'- file: output/{final.name} ({final.stat().st_size / 1e6:.1f} MB)',
              f'- {v["width"]}×{v["height"]}, {v["r_frame_rate"]} fps, {float(probe["format"]["duration"]):.1f} s',
-             f'- loudness {lufs} LUFS, true peak {peak} dBFS (target {L["target_lufs"]})']
+             (f'- loudness {lufs} LUFS, true peak {peak} dBFS (target {L["target_lufs"]})' if not timing['placeholder']
+              else '- loudness: n/a, the placeholder voice is silent')]
     if timing['placeholder']:
         lines.append('- placeholder voice: silent, timing estimated. Run the voice step without --placeholder for a real cut.')
     else:
