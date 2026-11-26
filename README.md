@@ -4,7 +4,9 @@
 
 Turn a script into a finished Douyin vertical video (1080×1920, 30 fps) on your own computer: synthetic voice, code-rendered animation, captions timed to the spoken word, automatic checks, loudness-normalised delivery. You talk to a coding agent; the agent runs the pipeline.
 
-<img src="docs/img/example-frames.jpg" alt="Three frames of the example video: a title page, a numbered list, and a closing line with a highlighted keyword" width="620">
+<img src="docs/img/example.gif" alt="The 20-second example video, without sound: a title page, a numbered list that fills in as it is spoken, and a closing line with a highlighted keyword" width="300">
+
+*The example in [examples/hello](examples/hello), as rendered by the pipeline (a GIF, so no sound).*
 
 The repo is built so that a person or an agent can read it and set everything up on a bare machine: which accounts to open, what to buy, what to install, where keys go, and a test video to prove it works. Mainland China users get a route that needs no VPN.
 
